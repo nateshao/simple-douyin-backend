@@ -2,17 +2,18 @@ package dao
 
 import (
 	"errors"
+	"strconv"
+	"strings"
+	"sync"
+
 	"github.com/Shopify/sarama"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/model"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/constants"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/logger"
 	"gorm.io/gorm"
-	"strconv"
-	"strings"
-	"sync"
 )
 
-//userDao 与favorite相关的数据库操作
+// userDao 与favorite相关的数据库操作
 type favoriteDao struct{}
 
 var (
@@ -52,7 +53,7 @@ func (f favoriteDao) SetFavoriteCount(videoId int64, favoriteCount int32) error 
 	})
 }
 
-//FavoriteAction 向数据库中插入一条点赞记录，若已有点赞记录，将该点赞记录设置为1
+// FavoriteAction 向数据库中插入一条点赞记录，若已有点赞记录，将该点赞记录设置为1
 func (f *favoriteDao) FavoriteAction(userId, videoId int64) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		var err error
@@ -80,7 +81,7 @@ func (f *favoriteDao) FavoriteAction(userId, videoId int64) error {
 	})
 }
 
-//UnfavoriteAction 从数据库中软删除一条点赞记录，也即将点赞的记录设置为0
+// UnfavoriteAction 从数据库中软删除一条点赞记录，也即将点赞的记录设置为0
 func (f *favoriteDao) UnfavoriteAction(userId, videoId int64) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		var err error
@@ -112,7 +113,7 @@ func (f *favoriteDao) GetFavoriteList(userId int64) ([]*model.Video, error) {
 	n := len(favors)
 	videos := make([]*model.Video, n)
 	for i, fav := range favors {
-		videos[i], err = GetVideoDaoInstance().GetVideoByVideoId(fav.VideoID)
+		videos[i], err = GetVideoDaoInstance().GetVideoByVideoIdInfo(fav.VideoID)
 		if err != nil {
 			return nil, err
 		}
