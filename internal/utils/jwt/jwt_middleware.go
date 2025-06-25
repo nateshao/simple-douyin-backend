@@ -3,6 +3,9 @@ package jwt
 import (
 	"context"
 	"errors"
+	"net/http"
+	"time"
+
 	"github.com/YOJIA-yukino/simple-douyin-backend/api"
 	pbuser "github.com/YOJIA-yukino/simple-douyin-backend/api/rpc_controller_service/user"
 	initialization "github.com/YOJIA-yukino/simple-douyin-backend/init"
@@ -18,8 +21,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"net/http"
-	"time"
 )
 
 var (
@@ -50,8 +51,8 @@ func LoginResponse(content context.Context, requestContext *app.RequestContext, 
 		Password: password,
 	})
 
-	if err != nil {
-		logger.GlobalLogger.Printf("Got error from RPC = %v", err)
+	if err != nil || userInfoResp == nil {
+		logger.GlobalLogger.Printf("Got error from RPC = %v, userInfoResp = %v", err, userInfoResp)
 		if errors.Is(status.Errorf(codes.AlreadyExists, constants.UserAlreadyExistErr.Error()), err) {
 			requestContext.JSON(consts.StatusOK, api.UserLoginResponse{
 				Response: api.Response{
@@ -74,6 +75,7 @@ func LoginResponse(content context.Context, requestContext *app.RequestContext, 
 				},
 			})
 		}
+		return
 	}
 
 	requestContext.JSON(consts.StatusOK, api.UserLoginResponse{
