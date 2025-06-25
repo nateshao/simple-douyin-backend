@@ -167,11 +167,23 @@ func (u *userService) userRegisterInfo(username, password string) (*model.User, 
 	})
 
 	if err != nil {
+		logger.GlobalLogger.Printf("AddUser failed: %v", err)
 		return nil, err
 	}
 	if result == nil || !result.Value {
+		logger.GlobalLogger.Printf("AddUser returned nil or false: result=%v", result)
 		return nil, errors.New("AddUser failed or returned nil")
 	}
+
+	// 注册后立即用用户名+密码查一次，帮助定位注册和查询条件不一致问题
+	ctx3, cancel3 := context.WithTimeout(ctx, time.Second)
+	defer cancel3()
+	checkResp, err := c.GetUserInfoByUserNameAndPassword(ctx3, &pbdao.UserDaoPost{Username: user.UserName, Password: user.PassWord})
+	if err != nil || checkResp == nil {
+		logger.GlobalLogger.Printf("[RegisterCheck] After AddUser, cannot find user by username+password. Username: %s, Password: %s, err: %v, resp: %v", user.UserName, user.PassWord, err, checkResp)
+		return nil, errors.New("Register succeeded but cannot query user by username+password. Please check password encryption and query logic.")
+	}
+	logger.GlobalLogger.Printf("[RegisterCheck] After AddUser, user can be found by username+password. Username: %s, Password: %s", user.UserName, user.PassWord)
 	return user, nil
 }
 
