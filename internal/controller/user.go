@@ -3,6 +3,9 @@ package controller
 import (
 	"context"
 	"errors"
+	"strconv"
+	"time"
+
 	"github.com/YOJIA-yukino/simple-douyin-backend/api"
 	pbuser "github.com/YOJIA-yukino/simple-douyin-backend/api/rpc_controller_service/user"
 	initialization "github.com/YOJIA-yukino/simple-douyin-backend/init"
@@ -15,8 +18,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"time"
 )
 
 // usersLoginInfo use map to store user info, and key is username+password for demo
@@ -84,6 +85,7 @@ func Register(content context.Context, requestContext *app.RequestContext) {
 		}
 		return
 	}
+	requestContext.Request.SetQueryString("username=" + user.Username + "&password=" + user.Password)
 	jwt.JwtMiddleware.LoginHandler(content, requestContext)
 }
 
