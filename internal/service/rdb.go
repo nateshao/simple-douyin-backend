@@ -27,3 +27,7 @@ const (
 func getEmptyCacheExpireTime() time.Duration {
 	return time.Duration(int64(emptyCacheExpireTime) + rand.Int63n(int64(30*time.Minute)))
 }
+
+func InitRedis() {
+	initRedis()
+}

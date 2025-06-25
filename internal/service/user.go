@@ -114,6 +114,10 @@ func (u *userService) GetUserIdByUserName(ctx context.Context, in *pbservice.Use
 
 // service层对用户注册请求的内部处理逻辑
 func (u *userService) userRegisterInfo(username, password string) (*model.User, error) {
+	if redisClient == nil {
+		logger.GlobalLogger.Printf("redisClient is nil in userRegisterInfo!")
+		return nil, errors.New("redisClient is not initialized")
+	}
 	var err error
 	ctx := context.Background()
 	// 先看redis中存不存在
