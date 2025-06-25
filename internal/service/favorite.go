@@ -235,24 +235,29 @@ func (f *favoriteService) FavoriteListInfo(loginUserId, userId int64) (*[]api.Vi
 	if errors.Is(constants.UserNotExistErr, err) {
 		return nil, err
 	}
+	ctx := context.Background()
 	userKey := userFavoritePrefix + strconv.FormatInt(userId, 10)
-	exists, err := redisClient.Exists(userKey).Result()
+	exists, err := redisClient.Exists(ctx, userKey)
 	if err != nil {
 		return nil, constants.RedisDBErr
 	}
-	if exists == 0 {
+	if !exists {
 		//从数据库中获得点赞列表，放入redis中
 		videos, errdb := dao.GetFavoriteDaoInstance().GetFavoriteList(userId)
 		for errdb != nil {
-			videos, err = dao.GetFavoriteDaoInstance().GetFavoriteList(userId)
+			videos, errdb = dao.GetFavoriteDaoInstance().GetFavoriteList(userId)
 		}
 		for _, video := range videos {
-			redisClient.LPush(userKey, video.VideoID)
+			_ = redisClient.LPush(ctx, userKey, strconv.FormatInt(video.VideoID, 10))
 		}
 	}
-	videoIds, err := redisClient.LRange(userKey, 0, -1).Result()
+	videoIdStrs, err := redisClient.LRange(ctx, userKey, 0, -1)
 	if err != nil {
 		return nil, err
+	}
+	var videoIds []string
+	for _, s := range videoIdStrs {
+		videoIds = append(videoIds, s)
 	}
 	videoList, err := getVideoListByID(loginUserId, videoIds)
 	return &videoList, err
@@ -266,9 +271,10 @@ func (f *favoriteService) DeleteDatabaseRegularly() error {
 
 // WriteToDataBaseRegularly 定时从redis中获取点赞记录写入数据库
 func (f *favoriteService) WriteToDataBaseRegularly() error {
-	for key, _ := range f.videoKeySet {
+	ctx := context.Background()
+	for key := range f.videoKeySet {
 		logger.GlobalLogger.Printf("key = %v", key)
-		val, err := redisClient.Get(key).Result()
+		val, err := redisClient.Get(ctx, key)
 		if err != nil {
 			return constants.RedisDBErr
 		}

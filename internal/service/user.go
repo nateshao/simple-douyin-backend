@@ -166,8 +166,11 @@ func (u *userService) userRegisterInfo(username, password string) (*model.User, 
 		UserId:   user.UserID,
 	})
 
-	if !result.Value {
+	if err != nil {
 		return nil, err
+	}
+	if result == nil || !result.Value {
+		return nil, errors.New("AddUser failed or returned nil")
 	}
 	return user, nil
 }
