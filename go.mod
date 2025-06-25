@@ -18,6 +18,22 @@ require (
 	gopkg.in/ini.v1 v1.67.0
 	gorm.io/driver/mysql v1.4.5
 	gorm.io/gorm v1.24.3
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
+	github.com/golang-jwt/jwt/v4 v4.4.1
+	github.com/prometheus/client_golang v1.14.0
+	github.com/uber-go/tally/v4 v4.1.7
+	github.com/opentracing/opentracing-go v1.2.0
+	github.com/uber/jaeger-client-go v2.30.0+incompatible
+	github.com/uber/jaeger-lib v2.4.1+incompatible
+	github.com/hashicorp/consul/api v1.20.0
+	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/gin-gonic/gin v1.9.0
+	github.com/go-playground/validator/v10 v10.11.2
+	github.com/spf13/viper v1.15.0
+	github.com/sirupsen/logrus v1.9.0
+	github.com/golang-migrate/migrate/v4 v4.15.2
+	github.com/testcontainers/testcontainers-go v0.19.0
+	github.com/ory/dockertest/v3 v3.9.1
 )
 
 require (
@@ -35,7 +51,6 @@ require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -79,7 +94,6 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
