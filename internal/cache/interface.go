@@ -24,6 +24,12 @@ type Cache interface {
 	Incr(ctx context.Context, key string) error
 	Decr(ctx context.Context, key string) error
 
+	// 列表操作
+	LPush(ctx context.Context, key string, values ...interface{}) error
+	LRange(ctx context.Context, key string, start, stop int64) ([]string, error)
+	LRem(ctx context.Context, key string, count int64, value interface{}) error
+	LTrim(ctx context.Context, key string, start, stop int64) error
+
 	// 关闭连接
 	Close() error
 }

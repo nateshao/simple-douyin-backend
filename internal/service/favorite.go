@@ -3,6 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/Shopify/sarama"
 	"github.com/YOJIA-yukino/simple-douyin-backend/api"
 	pb "github.com/YOJIA-yukino/simple-douyin-backend/api/rpc_controller_service/favorite/route"
@@ -10,10 +15,6 @@ import (
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/constants"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/cronUtils"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/logger"
-	"math/rand"
-	"strconv"
-	"sync"
-	"time"
 )
 
 type favoriteService struct {
@@ -171,72 +172,64 @@ func (f *favoriteService) writeToKafkaAsyn(userId, videoId int64, actionType int
 	}
 }
 
-//将点赞信息写入redis
+// 将点赞信息写入redis
 func (f *favoriteService) writeToRedis(userId, videoId int64, actionType int32) error {
-	//判断redis中是否存在
+	ctx := context.Background()
 	videoKey := videoFavoritePrefix + strconv.FormatInt(videoId, 10)
-	exists, err := redisClient.Exists(videoKey).Result()
+	exists, err := redisClient.Exists(ctx, videoKey)
 	if err != nil {
 		return constants.RedisDBErr
 	}
-	//写入videoKeySet
 	f.videoKeySet[videoKey] = nil
-	if exists == 0 {
+	if !exists {
 		favoriteCount, err := dao.GetFavoriteDaoInstance().GetFavoriteCount(videoId)
 		if err != nil && errors.Is(constants.RecordNotExistErr, err) {
-			//放入空缓存
-			err = redisClient.Set(videoKey, emptyCache, getEmptyCacheExpireTime()).Err()
+			err = redisClient.SetWithExpiration(ctx, videoKey, emptyCache, getEmptyCacheExpireTime())
+			if err != nil {
+				return constants.RedisDBErr
+			}
+		} else if err == nil {
+			err = redisClient.SetWithExpiration(ctx, videoKey, favoriteCount, getEmptyCacheExpireTime())
 			if err != nil {
 				return constants.RedisDBErr
 			}
 		} else {
 			return err
 		}
-		if actionType == api.FavoriteAction {
-			favoriteCount++
-		} else if actionType == api.UnFavoriteAction {
-			favoriteCount--
-		}
-		err = redisClient.Set(videoKey, strconv.Itoa(int(favoriteCount)), getVideoFavoriteExpireTime()).Err()
-		if err != nil {
-			return constants.RedisDBErr
-		}
-	} else {
-		redisClient.Expire(videoKey, videoFavoriteExpireTime)
-		if emptyCache == redisClient.Get(videoKey).Val() {
-			//直接返回
-			return nil
-		}
-		if actionType == api.FavoriteAction {
-			err = redisClient.Incr(videoKey).Err()
-		} else if actionType == api.UnFavoriteAction {
-			err = redisClient.Decr(videoKey).Err()
-		}
-		if err != nil {
-			return constants.RedisDBErr
-		}
 	}
 	userKey := userFavoritePrefix + strconv.FormatInt(userId, 10)
-	exists, err = redisClient.Exists(userKey).Result()
-	if err != nil {
-		return constants.RedisDBErr
-	}
-	if exists == 0 {
-		//从数据库中获得点赞列表，放入redis中
-		videos, errdb := dao.GetFavoriteDaoInstance().GetFavoriteList(userId)
-		for errdb != nil {
-			videos, err = dao.GetFavoriteDaoInstance().GetFavoriteList(userId)
+	if actionType == 1 {
+		err = redisClient.LPush(ctx, userKey, strconv.FormatInt(videoId, 10))
+		if err != nil {
+			return constants.RedisDBErr
 		}
-		for _, video := range videos {
-			redisClient.LPush(userKey, video.VideoID)
+	} else if actionType == 2 {
+		err = redisClient.LRem(ctx, userKey, 0, strconv.FormatInt(videoId, 10))
+		if err != nil {
+			return constants.RedisDBErr
 		}
 	}
-	redisClient.LPush(userKey, videoId)
-	redisClient.Expire(userKey, getUserFavoriteExpireTime())
 	return nil
 }
 
-//FavoriteListInfo service层查找用户点赞过的所有视频
+func (f *favoriteService) getUserFavoriteListFromRedis(userId int64) ([]int64, error) {
+	ctx := context.Background()
+	userKey := userFavoritePrefix + strconv.FormatInt(userId, 10)
+	videoIdStrs, err := redisClient.LRange(ctx, userKey, 0, -1)
+	if err != nil {
+		return nil, constants.RedisDBErr
+	}
+	var videoIds []int64
+	for _, s := range videoIdStrs {
+		id, err := strconv.ParseInt(s, 10, 64)
+		if err == nil {
+			videoIds = append(videoIds, id)
+		}
+	}
+	return videoIds, nil
+}
+
+// FavoriteListInfo service层查找用户点赞过的所有视频
 func (f *favoriteService) FavoriteListInfo(loginUserId, userId int64) (*[]api.Video, error) {
 	_, err := GetUserServiceInstance().getUserByUserId(userId)
 	if errors.Is(constants.UserNotExistErr, err) {

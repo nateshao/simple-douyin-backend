@@ -3,6 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"strconv"
+	"sync"
+	"time"
+
 	pbservice "github.com/YOJIA-yukino/simple-douyin-backend/api/rpc_controller_service/user"
 	pbdao "github.com/YOJIA-yukino/simple-douyin-backend/api/rpc_service_dao/user"
 	initialization "github.com/YOJIA-yukino/simple-douyin-backend/init"
@@ -15,10 +20,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"math/rand"
-	"strconv"
-	"sync"
-	"time"
 )
 
 // userService 与用户相关的操作使用的结构体
@@ -114,13 +115,14 @@ func (u *userService) GetUserIdByUserName(ctx context.Context, in *pbservice.Use
 // service层对用户注册请求的内部处理逻辑
 func (u *userService) userRegisterInfo(username, password string) (*model.User, error) {
 	var err error
+	ctx := context.Background()
 	// 先看redis中存不存在
 	key := userLoginPrefix + username
-	exist, err := redisClient.Exists(key).Result()
+	exist, err := redisClient.Exists(ctx, key)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, constants.RedisDBErr.Error())
 	}
-	if exist == 1 { //存在直接返回错误
+	if exist { //存在直接返回错误
 		return nil, status.Errorf(codes.AlreadyExists, constants.UserAlreadyExistErr.Error())
 	}
 	address := initialization.RpcSDConf.UserServiceHost + initialization.RpcSDConf.UserServicePort
@@ -132,7 +134,7 @@ func (u *userService) userRegisterInfo(username, password string) (*model.User, 
 	c := pbdao.NewUserDaoInfoClient(conn)
 
 	// Contact the server and print out its response.
-	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
+	ctx1, cancel1 := context.WithTimeout(ctx, time.Second)
 	defer cancel1()
 	userResp, err := c.GetUserInfoByUserName(ctx1, &pbdao.UserDaoPost{Username: username})
 
@@ -156,7 +158,7 @@ func (u *userService) userRegisterInfo(username, password string) (*model.User, 
 		user.PassWord = password
 	}
 	go u.writeUsernameToUserInfoToRedis(username, user.PassWord, userId)
-	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
+	ctx2, cancel2 := context.WithTimeout(ctx, time.Second)
 	defer cancel2()
 	result, err := c.AddUser(ctx2, &pbdao.UserDaoPost{
 		Username: user.UserName,
@@ -173,23 +175,24 @@ func (u *userService) userRegisterInfo(username, password string) (*model.User, 
 // 从username,password获得User
 func (u *userService) checkUserInfo(username, password string) (*model.User, error) {
 	var err error
+	ctx := context.Background()
 	if initialization.UserConf.PasswordEncrypted {
 		password = md5.MD5(password)
 	}
 	key := userLoginPrefix + username
-	exist, err := redisClient.Exists(key).Result()
+	exist, err := redisClient.Exists(ctx, key)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, constants.RedisDBErr.Error())
 	}
 	// 如果存在直接返回
-	if exist == 1 {
-		userInfo, _ := redisClient.HMGet(key, "UserId", "Password").Result()
-		userId := userInfo[0].(int64)
-		pwd := userInfo[1].(string)
+	if exist {
+		userInfo, _ := redisClient.HMGet(ctx, key, "UserId", "Password")
+		userId, _ := userInfo[0].(int64)
+		pwd, _ := userInfo[1].(string)
 		if password != pwd {
 			return nil, status.Errorf(codes.NotFound, constants.UserNotExistErr.Error())
 		}
-		redisClient.Expire(key, getUserLoginExpireTime())
+		redisClient.Expire(ctx, key, getUserLoginExpireTime())
 		return &model.User{UserID: userId, UserName: username}, nil
 	}
 	address := initialization.RpcSDConf.UserServiceHost + initialization.RpcSDConf.UserServicePort
@@ -202,7 +205,7 @@ func (u *userService) checkUserInfo(username, password string) (*model.User, err
 	c := pbdao.NewUserDaoInfoClient(conn)
 
 	// Contact the server and print out its response.
-	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
+	ctx1, cancel1 := context.WithTimeout(ctx, time.Second)
 	defer cancel1()
 	userResp, err := c.GetUserInfoByUserNameAndPassword(
 		ctx1, &pbdao.UserDaoPost{Username: username, Password: password})
@@ -223,19 +226,20 @@ func (u *userService) checkUserInfo(username, password string) (*model.User, err
 // 通过userid得到user
 func (u *userService) getUserByUserId(userId int64) (*model.User, error) {
 	var err error
+	ctx := context.Background()
 	//从redis中获取
 	key := userLoginPrefix + strconv.FormatInt(userId, 10)
-	exist, err := redisClient.Exists(key).Result()
+	exist, err := redisClient.Exists(ctx, key)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, constants.RedisDBErr.Error())
 	}
 	// 如果存在直接返回
-	if exist == 1 {
-		userInfo, _ := redisClient.HMGet(key, "UserName", "FollowCnt", "FollowerCnt").Result()
-		redisClient.Expire(key, getUserLoginExpireTime())
-		userName := userInfo[0].(string)
-		followCnt := userInfo[1].(int64)
-		followerCnt := userInfo[2].(int64)
+	if exist {
+		userInfo, _ := redisClient.HMGet(ctx, key, "UserName", "FollowCnt", "FollowerCnt")
+		userName, _ := userInfo[0].(string)
+		followCnt, _ := userInfo[1].(int64)
+		followerCnt, _ := userInfo[2].(int64)
+		redisClient.Expire(ctx, key, getUserLoginExpireTime())
 		return &model.User{UserID: userId, UserName: userName, FollowCount: followCnt, FollowerCount: followerCnt}, nil
 	}
 	address := initialization.RpcSDConf.UserServiceHost + initialization.RpcSDConf.UserServicePort
@@ -248,7 +252,7 @@ func (u *userService) getUserByUserId(userId int64) (*model.User, error) {
 	c := pbdao.NewUserDaoInfoClient(conn)
 
 	// Contact the server and print out its response.
-	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
+	ctx1, cancel1 := context.WithTimeout(ctx, time.Second)
 	defer cancel1()
 	userResp, err := c.GetUserInfoByUserId(
 		ctx1, &pbdao.UserDaoPost{UserId: userId})
@@ -269,16 +273,17 @@ func (u *userService) getUserByUserId(userId int64) (*model.User, error) {
 // 通过username得到user
 func (u *userService) getUserByUserName(username string) (*model.User, error) {
 	var err error
+	ctx := context.Background()
 	//先看redis中存不存在，存在的话直接返回
 	key := userLoginPrefix + username
-	exist, err := redisClient.Exists(key).Result()
+	exist, err := redisClient.Exists(ctx, key)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, constants.RedisDBErr.Error())
 	}
-	if exist == 1 {
-		userInfos, _ := redisClient.HMGet(key, "UserId").Result()
-		redisClient.Expire(key, getUserLoginExpireTime())
+	if exist {
+		userInfos, _ := redisClient.HMGet(ctx, key, "UserId")
 		userId, _ := userInfos[0].(int64)
+		redisClient.Expire(ctx, key, getUserLoginExpireTime())
 		return &model.User{UserID: userId}, nil
 	}
 	address := initialization.RpcSDConf.UserServiceHost + initialization.RpcSDConf.UserServicePort
@@ -291,7 +296,7 @@ func (u *userService) getUserByUserName(username string) (*model.User, error) {
 	c := pbdao.NewUserDaoInfoClient(conn)
 
 	// Contact the server and print out its response.
-	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
+	ctx1, cancel1 := context.WithTimeout(ctx, time.Second)
 	defer cancel1()
 	userResp, err := c.GetUserInfoByUserName(
 		ctx1, &pbdao.UserDaoPost{Username: username})
@@ -306,14 +311,15 @@ func (u *userService) getUserByUserName(username string) (*model.User, error) {
 }
 
 func (u *userService) writeUsernameToUserInfoToRedis(username, password string, userId int64) {
+	ctx := context.Background()
 	for {
 		key := userLoginPrefix + username
 		userName2UserInfo := map[string]interface{}{
 			"UserId":   userId,
 			"Password": password,
 		}
-		err := redisClient.HMSet(key, userName2UserInfo).Err()
-		err = redisClient.Expire(key, getUserLoginExpireTime()).Err()
+		err := redisClient.HMSet(ctx, key, userName2UserInfo)
+		err = redisClient.Expire(ctx, key, getUserLoginExpireTime())
 		if err == nil {
 			break
 		}
@@ -321,6 +327,7 @@ func (u *userService) writeUsernameToUserInfoToRedis(username, password string, 
 }
 
 func (u *userService) writeUserIdToUserModelToRedis(user *model.User) {
+	ctx := context.Background()
 	for {
 		userId := user.UserID
 		userIdStr := strconv.FormatInt(userId, 10)
@@ -330,8 +337,8 @@ func (u *userService) writeUserIdToUserModelToRedis(user *model.User) {
 			"FollowCnt":   user.FollowCount,
 			"FollowerCnt": user.FollowerCount,
 		}
-		err := redisClient.HMSet(key, userId2UserInfo).Err()
-		err = redisClient.Expire(key, getUserLoginExpireTime()).Err()
+		err := redisClient.HMSet(ctx, key, userId2UserInfo)
+		err = redisClient.Expire(ctx, key, getUserLoginExpireTime())
 		if err == nil {
 			break
 		}

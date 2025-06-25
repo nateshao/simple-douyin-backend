@@ -1,21 +1,21 @@
 package service
 
 import (
-	initialization "github.com/YOJIA-yukino/simple-douyin-backend/init"
-	"github.com/go-redis/redis"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/YOJIA-yukino/simple-douyin-backend/internal/cache"
 )
 
 var (
-	redisClient *redis.Client
+	redisClient cache.Cache
 	redisOnce   sync.Once
 )
 
 func initRedis() {
 	redisOnce.Do(func() {
-		redisClient = initialization.GetRDB()
+		redisClient = cache.GetRedisClient()
 	})
 }
 

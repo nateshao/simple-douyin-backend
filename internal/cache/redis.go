@@ -97,3 +97,23 @@ func (r *RedisCache) Close() error {
 	}
 	return nil
 }
+
+// LPush 列表左插入
+func (r *RedisCache) LPush(ctx context.Context, key string, values ...interface{}) error {
+	return r.client.LPush(ctx, key, values...).Err()
+}
+
+// LRange 获取列表区间
+func (r *RedisCache) LRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
+	return r.client.LRange(ctx, key, start, stop).Result()
+}
+
+// LRem 移除列表元素
+func (r *RedisCache) LRem(ctx context.Context, key string, count int64, value interface{}) error {
+	return r.client.LRem(ctx, key, count, value).Err()
+}
+
+// LTrim 裁剪列表
+func (r *RedisCache) LTrim(ctx context.Context, key string, start, stop int64) error {
+	return r.client.LTrim(ctx, key, start, stop).Err()
+}
