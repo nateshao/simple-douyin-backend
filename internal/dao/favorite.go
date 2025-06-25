@@ -144,6 +144,12 @@ func (f *favoriteDao) HardDeleteUnFavorite() error {
 
 // getFromMessageQueue 从消息队列中异步获取点赞信息，然后将信息写入数据库
 func (f *favoriteDao) getFromMessageQueue() error {
+	// 检查Kafka客户端是否已初始化
+	if kafkaClient == nil {
+		logger.GlobalLogger.Printf("Kafka client is not initialized, skipping message queue processing")
+		return nil
+	}
+
 	partitionList, err := kafkaClient.Partitions(constants.KafkaTopicPrefix + "favorite") // 根据topic取到所有的分区
 	if err != nil {
 		logger.GlobalLogger.Printf("fail to get list of partition:err%v\n", err)

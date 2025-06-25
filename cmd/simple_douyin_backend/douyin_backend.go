@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+
 	initialization "github.com/YOJIA-yukino/simple-douyin-backend/init"
 	"github.com/YOJIA-yukino/simple-douyin-backend/init/router"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/dao"
+	"github.com/YOJIA-yukino/simple-douyin-backend/internal/monitoring"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/cronUtils"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/jwt"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/logger"
@@ -30,6 +32,9 @@ func initAll() {
 
 	//Init lower Levels
 	dao.DaoInitialization()
+
+	//Init monitoring
+	monitoring.InitMonitoring(initialization.GetDB(), dao.GetCache())
 }
 
 func main() {

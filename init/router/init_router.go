@@ -2,12 +2,17 @@ package router
 
 import (
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/controller"
+	"github.com/YOJIA-yukino/simple-douyin-backend/internal/monitoring"
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/utils/jwt"
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
 // InitRouter 初始化hertz服务器路由
 func InitRouter(hertz *server.Hertz) {
+
+	// 健康检查和监控路由
+	hertz.GET("/health", monitoring.HealthCheckHandler)
+	hertz.GET("/metrics", monitoring.MetricsHandler)
 
 	// 用户注册与登录需要进行鉴权, Feed可授权可不授权
 	hertz.POST("/douyin/user/register/", controller.Register)

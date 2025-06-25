@@ -3,10 +3,12 @@ package monitoring
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/YOJIA-yukino/simple-douyin-backend/internal/cache"
+	"github.com/cloudwego/hertz/pkg/app"
 	"gorm.io/gorm"
 )
 
@@ -95,7 +97,7 @@ func (h *HealthChecker) checkRedis(ctx context.Context) ServiceInfo {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	exists, err := h.cache.Exists(ctx, "health_check")
+	_, err := h.cache.Exists(ctx, "health_check")
 	latency := time.Since(start)
 
 	if err != nil {
@@ -172,4 +174,48 @@ func (m *Metrics) GetMetrics() map[string]interface{} {
 		"error_rate":         errorRate,
 		"success_rate":       1 - errorRate,
 	}
+}
+
+// 全局变量
+var (
+	healthChecker *HealthChecker
+	metrics       *Metrics
+)
+
+// InitMonitoring 初始化监控
+func InitMonitoring(db *gorm.DB, cache cache.Cache) {
+	healthChecker = NewHealthChecker(db, cache)
+	metrics = NewMetrics()
+}
+
+// HealthCheckHandler 健康检查处理器
+func HealthCheckHandler(ctx context.Context, c *app.RequestContext) {
+	if healthChecker == nil {
+		c.JSON(http.StatusServiceUnavailable, map[string]string{
+			"status":  "unhealthy",
+			"message": "Health checker not initialized",
+		})
+		return
+	}
+
+	status := healthChecker.CheckHealth(ctx)
+
+	if status.Status == "healthy" {
+		c.JSON(http.StatusOK, status)
+	} else {
+		c.JSON(http.StatusServiceUnavailable, status)
+	}
+}
+
+// MetricsHandler 指标处理器
+func MetricsHandler(ctx context.Context, c *app.RequestContext) {
+	if metrics == nil {
+		c.JSON(http.StatusServiceUnavailable, map[string]string{
+			"status":  "error",
+			"message": "Metrics not initialized",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, metrics.GetMetrics())
 }

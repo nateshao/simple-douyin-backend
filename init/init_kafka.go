@@ -2,6 +2,7 @@ package init
 
 import (
 	"fmt"
+
 	"github.com/Shopify/sarama"
 )
 
@@ -26,16 +27,22 @@ func InitKafkaServer() {
 	config.Producer.Return.Successes = kafkaServerConf.ReturnSuccesses
 	kafkaServer, err = sarama.NewSyncProducer([]string{fmt.Sprintf("%s:%s", kafkaServerConf.Host, kafkaServerConf.Port)}, config)
 	if err != nil {
-		stdOutLogger.Panic().Caller().Str("Error occurs in InitKafkaServer,", err.Error())
+		stdOutLogger.Error().Caller().Str("Error occurs in InitKafkaServer", err.Error()).Msg("Kafka server initialization failed, continuing without Kafka")
+		kafkaServer = nil
+		return
 	}
+	stdOutLogger.Info().Msg("Kafka server initialized successfully")
 }
 
 func InitKafkaClient() {
 	var err error
 	kafkaClient, err = sarama.NewConsumer([]string{fmt.Sprintf("%s:%s", kafkaClientConf.Host, kafkaClientConf.Port)}, nil)
 	if err != nil {
-		stdOutLogger.Panic().Caller().Str("Error occurs in InitKafkaClient,", err.Error())
+		stdOutLogger.Error().Caller().Str("Error occurs in InitKafkaClient", err.Error()).Msg("Kafka client initialization failed, continuing without Kafka")
+		kafkaClient = nil
+		return
 	}
+	stdOutLogger.Info().Msg("Kafka client initialized successfully")
 }
 
 func GetKafkaServer() sarama.SyncProducer {
